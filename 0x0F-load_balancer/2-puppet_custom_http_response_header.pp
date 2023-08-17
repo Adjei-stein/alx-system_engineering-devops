@@ -1,16 +1,41 @@
-# Use Puppet to automate the task of creating a custom HTTP header response
+# Install package
+package { 'nginx':
+  ensure => installed,
+}
+# configure Nginx
+file { '/etc/nginx/sites-available/default':
+  ensure  => present,
+  content => '
+    server {
+      listen 80;
+      server_name 103565-lb-01;
 
-exec {'update':
-  command => '/usr/bin/apt-get update',
+      location / {
+        proxy_pass http://54.157.187.34;
+        proxy_set_header X-Served-By $hostname;
+      }
+
+      location /redirect_me {
+        return 302 http://google.com;
+      }
+
+      error_page 404 /404.html;
+      location = /404.html {
+        root /usr/share/nginx/html;
+        internal;
+      }
+    }
+  ',
 }
--> package {'nginx':
-  ensure => 'present',
+# create custom 404 page
+file { '/usr/share/nginx/html/404.html':
+  ensure  => present,
+  content => "Ceci n'est pas une page\n",
 }
--> file_line { 'http_header':
-  path  => '/etc/nginx/nginx.conf',
-  match => 'http {',
-  line  => "http {\n\tadd_header X-Served-By \"${hostname}\";",
-}
--> exec {'run':
-  command => '/usr/sbin/service nginx restart',
+
+# Restart Nginx
+service { 'nginx':
+  ensure    => running,
+  enable    => true,
+  subscribe => File['/etc/nginx/sites-available/default', '/usr/share/nginx/html/404.html'],
 }
